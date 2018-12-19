@@ -19,6 +19,7 @@ open class ManifestBuilder {
     fileprivate func parseMasterPlaylist(_ reader: BufferedReader, onMediaPlaylist:
             ((_ playlist: MediaPlaylist) -> Void)?) -> MasterPlaylist {
         var masterPlaylist = MasterPlaylist()
+        var playlists: [MediaPlaylist] = []
         var currentMediaPlaylist: MediaPlaylist?
 
         defer {
@@ -35,19 +36,7 @@ open class ManifestBuilder {
                     // Ok Do nothing
 
                 } else if line.hasPrefix("#EXT-X-STREAM-INF") {
-                    // #EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=200000
-                    currentMediaPlaylist = MediaPlaylist()
-                    do {
-                        let programIdString = try line.replace("(.*)=(\\d+),(.*)", replacement: "$2")
-                        let bandwidthString = try line.replace("(.*),(.*)=(\\d+)(.*)", replacement: "$3")
-                        if let currentMediaPlaylistExist = currentMediaPlaylist {
-                            currentMediaPlaylistExist.programId = Int(programIdString)!
-                            currentMediaPlaylistExist.bandwidth = Int(bandwidthString)!
-                        }
-                    } catch {
-                        print("Failed to parse program-id and bandwidth on master playlist. Line = \(line)")
-                    }
-
+                    currentMediaPlaylist = parseMasterPlaylistExtXStreamInf(line, masterPlaylist: masterPlaylist)
                 }
             } else if line.hasPrefix("#") {
                 // Comments are ignored
@@ -56,23 +45,63 @@ open class ManifestBuilder {
                 // URI - must be
                 if let currentMediaPlaylistExist = currentMediaPlaylist {
                     currentMediaPlaylistExist.path = line
-                    currentMediaPlaylistExist.masterPlaylist = masterPlaylist
-                    masterPlaylist.addPlaylist(currentMediaPlaylistExist)
+                    playlists.append(currentMediaPlaylistExist)
                     if let callableOnMediaPlaylist = onMediaPlaylist {
                         callableOnMediaPlaylist(currentMediaPlaylistExist)
                     }
                 }
             }
         }
-
+        
+        masterPlaylist.playlists = playlists
         return masterPlaylist
+    }
+    
+    private func parseMasterPlaylistExtXStreamInf(_ line: String, masterPlaylist: MasterPlaylist) -> MediaPlaylist? {
+        // #EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=200000
+        // #EXT-X-STREAM-INF:BANDWIDTH=137954,CODECS=\"mp4a.40.2\"
+        
+        guard let parametersString = try? line.replace("#EXT-X-STREAM-INF:", replacement: "") else {
+            print("Failed to parse program-id and bandwidth on master playlist. Line = \(line)")
+            return nil
+        }
+        
+        let currentMediaPlaylist = MediaPlaylist(masterPlaylist: masterPlaylist)
+        
+        let parameters = parametersString.split(separator: ",")
+        
+        for parameter in parameters {
+            let parameterKeyValue = parameter.split(separator: "=")
+            
+            guard parameterKeyValue.count == 2 else {
+                continue
+            }
+            
+            let parameterKey = parameterKeyValue[0].trimmingCharacters(in: CharacterSet.whitespaces)
+            let parameterValue = parameterKeyValue[1].trimmingCharacters(in: CharacterSet.whitespaces)
+            
+            switch (parameterKey) {
+                case "PROGRAM-ID":
+                    currentMediaPlaylist.programId = Int(parameterValue) ?? 0
+                
+                case "BANDWIDTH":
+                    currentMediaPlaylist.bandwidth = Int(parameterValue) ?? 0
+                
+                case "CODECS":
+                    currentMediaPlaylist.codec = parameterValue.unescaped
+                
+                default: ()
+            }
+        }
+        
+        return currentMediaPlaylist
     }
 
     /**
     * Parses Media Playlist manifests
     */
     fileprivate func parseMediaPlaylist(_ reader: BufferedReader,
-                                        mediaPlaylist: MediaPlaylist = MediaPlaylist(),
+                                        mediaPlaylist: MediaPlaylist,
                                         onMediaSegment: ((_ segment: MediaSegment) -> Void)?) -> MediaPlaylist {
         var currentSegment: MediaSegment?
         var currentURI: String?
@@ -209,7 +238,7 @@ open class ManifestBuilder {
     * Convenience method that uses a StringBufferedReader as source for the manifest.
     */
     open func parseMediaPlaylistFromString(_ string: String,
-                                           mediaPlaylist: MediaPlaylist = MediaPlaylist(),
+                                           mediaPlaylist: MediaPlaylist,
                                            onMediaSegment:((_ segment: MediaSegment) -> Void)? = nil) -> MediaPlaylist {
         return parseMediaPlaylist(StringBufferedReader(string: string),
                 mediaPlaylist: mediaPlaylist, onMediaSegment: onMediaSegment)
@@ -221,7 +250,7 @@ open class ManifestBuilder {
     * Convenience method that uses a FileBufferedReader as source for the manifest.
     */
     open func parseMediaPlaylistFromFile(_ path: String,
-                                         mediaPlaylist: MediaPlaylist = MediaPlaylist(),
+                                         mediaPlaylist: MediaPlaylist,
                                          onMediaSegment: ((_ segment: MediaSegment) -> Void)? = nil) -> MediaPlaylist {
         return parseMediaPlaylist(FileBufferedReader(path: path),
                 mediaPlaylist: mediaPlaylist, onMediaSegment: onMediaSegment)
@@ -234,7 +263,7 @@ open class ManifestBuilder {
     */
     @discardableResult
     open func parseMediaPlaylistFromURL(_ url: URL,
-                                        mediaPlaylist: MediaPlaylist = MediaPlaylist(),
+                                        mediaPlaylist: MediaPlaylist,
                                         onMediaSegment: ((_ segment: MediaSegment) -> Void)? = nil) -> MediaPlaylist {
         return parseMediaPlaylist(URLBufferedReader(uri: url),
                 mediaPlaylist: mediaPlaylist, onMediaSegment: onMediaSegment)
