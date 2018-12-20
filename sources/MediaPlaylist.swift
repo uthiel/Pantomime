@@ -6,7 +6,7 @@
 import Foundation
 
 open class MediaPlaylist {
-    let masterPlaylist: MasterPlaylist
+    open let masterPlaylist: MasterPlaylist
 
     open var programId: Int = 0
     open var bandwidth: Int = 0
@@ -15,7 +15,7 @@ open class MediaPlaylist {
     open var version: Int?
     open var targetDuration: Int?
     open var mediaSequence: Int?
-    open private(set) var segments = [MediaSegment]()
+    open var segments = [MediaSegment]()
 
     public init(masterPlaylist: MasterPlaylist) {
         self.masterPlaylist = masterPlaylist

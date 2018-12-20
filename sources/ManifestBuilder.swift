@@ -16,9 +16,10 @@ open class ManifestBuilder {
     /**
     * Parses Master playlist manifests
     */
-    fileprivate func parseMasterPlaylist(_ reader: BufferedReader, onMediaPlaylist:
+    fileprivate func parseMasterPlaylist(_ url: URL?, reader: BufferedReader, onMediaPlaylist:
             ((_ playlist: MediaPlaylist) -> Void)?) -> MasterPlaylist {
         var masterPlaylist = MasterPlaylist()
+        masterPlaylist.path = url?.absoluteString
         var playlists: [MediaPlaylist] = []
         var currentMediaPlaylist: MediaPlaylist?
 
@@ -209,7 +210,7 @@ open class ManifestBuilder {
     */
     open func parseMasterPlaylistFromString(_ string: String, onMediaPlaylist:
                 ((_ playlist: MediaPlaylist) -> Void)? = nil) -> MasterPlaylist {
-        return parseMasterPlaylist(StringBufferedReader(string: string), onMediaPlaylist: onMediaPlaylist)
+        return parseMasterPlaylist(nil, reader: StringBufferedReader(string: string), onMediaPlaylist: onMediaPlaylist)
     }
 
     /**
@@ -219,7 +220,7 @@ open class ManifestBuilder {
     */
     open func parseMasterPlaylistFromFile(_ path: String, onMediaPlaylist:
                 ((_ playlist: MediaPlaylist) -> Void)? = nil) -> MasterPlaylist {
-        return parseMasterPlaylist(FileBufferedReader(path: path), onMediaPlaylist: onMediaPlaylist)
+        return parseMasterPlaylist(nil, reader: FileBufferedReader(path: path), onMediaPlaylist: onMediaPlaylist)
     }
 
     /**
@@ -229,7 +230,7 @@ open class ManifestBuilder {
     */
     open func parseMasterPlaylistFromURL(_ url: URL, onMediaPlaylist:
                 ((_ playlist: MediaPlaylist) -> Void)? = nil) -> MasterPlaylist {
-        return parseMasterPlaylist(URLBufferedReader(uri: url), onMediaPlaylist: onMediaPlaylist)
+        return parseMasterPlaylist(url, reader: URLBufferedReader(uri: url), onMediaPlaylist: onMediaPlaylist)
     }
 
     /**
