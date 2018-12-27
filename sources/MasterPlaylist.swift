@@ -8,9 +8,25 @@
 
 import Foundation
 
-open class MasterPlaylist {
-    open internal(set) var playlists = [MediaPlaylist]()
-    open var path: String?
+public class MasterPlaylist {
+    internal let path: String?
+    internal(set) public var playlists = [MediaPlaylist]()
 
-    public init() {}
+    public init(path: String?) {
+        self.path = path
+    }
+    
+    public func url(for segment: MediaSegment) -> URL? {
+        guard
+            let masterPlaylistPath = path,
+            let playlistPath = segment.mediaPlaylist.path,
+            let segmentPath = segment.path,
+            let masterPlaylistURL = URL(string: masterPlaylistPath),
+            let playlistURL = masterPlaylistURL.URLByReplacingLastPathComponent(playlistPath),
+            let segmentURL = playlistURL.URLByReplacingLastPathComponent(segmentPath) else {
+                return nil
+        }
+        
+        return segmentURL
+    }
 }

@@ -18,8 +18,7 @@ open class ManifestBuilder {
     */
     fileprivate func parseMasterPlaylist(_ url: URL?, reader: BufferedReader, onMediaPlaylist:
             ((_ playlist: MediaPlaylist) -> Void)?) -> MasterPlaylist {
-        var masterPlaylist = MasterPlaylist()
-        masterPlaylist.path = url?.absoluteString
+        var masterPlaylist = MasterPlaylist(path: url?.absoluteString)
         var playlists: [MediaPlaylist] = []
         var currentMediaPlaylist: MediaPlaylist?
 
@@ -150,7 +149,7 @@ open class ManifestBuilder {
                     }
 
                 } else if line.hasPrefix("#EXTINF") {
-                    currentSegment = MediaSegment()
+                    currentSegment = MediaSegment(mediaPlaylist: mediaPlaylist)
                     do {
                         let segmentDurationString = try line.replace("(.*):(\\d.*),(.*)", replacement: "$2")
                         let segmentTitle = try line.replace("(.*):(\\d.*),(.*)", replacement: "$3")
@@ -187,12 +186,11 @@ open class ManifestBuilder {
 
             } else {
                 // URI - must be
-                if let currentSegmentExists = currentSegment {
-                    currentSegmentExists.mediaPlaylist = mediaPlaylist
+                if var currentSegmentExists = currentSegment {
                     currentSegmentExists.path = line
                     currentSegmentExists.sequence = currentSequence
                     currentSequence += 1
-                    mediaPlaylist.addSegment(currentSegmentExists)
+                    mediaPlaylist.segments.append(currentSegmentExists)
                     if let callableOnMediaSegment = onMediaSegment {
                         callableOnMediaSegment(currentSegmentExists)
                     }
