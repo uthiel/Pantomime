@@ -25,19 +25,25 @@ open class ManifestBuilder {
         defer {
             reader.close()
         }
+        
         while let line = reader.readLine() {
             if line.isEmpty {
                 // Skip empty lines
 
-            } else if line.hasPrefix("#EXT") {
-
+            }
+            else if line.hasPrefix("#EXT") {
                 // Tags
                 if line.hasPrefix("#EXTM3U") {
                     // Ok Do nothing
 
-                } else if line.hasPrefix("#EXT-X-STREAM-INF") {
+                }
+                else if line.hasPrefix("#EXT-X-STREAM-INF") {
                     currentMediaPlaylist = parseMasterPlaylistExtXStreamInf(line, masterPlaylist: masterPlaylist)
                 }
+                else if line.hasPrefix("#EXT-X-SESSION-KEY") {
+                    parseMasterPlaylistExtXSessionKey(line, masterPlaylist: masterPlaylist)
+                }
+                
             } else if line.hasPrefix("#") {
                 // Comments are ignored
 
@@ -96,6 +102,44 @@ open class ManifestBuilder {
         
         return currentMediaPlaylist
     }
+    
+    private func parseMasterPlaylistExtXSessionKey(_ line: String, masterPlaylist: MasterPlaylist) {
+        // #EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="skd://twelve",KEYFORMAT="com.apple.streamingkeydelivery",KEYFORMATVERSIONS="1"
+        
+        guard let parametersString = try? line.replace("#EXT-X-SESSION-KEY:", replacement: "") else {
+            print("Failed to parse X-SESSION-KEY on master playlist. Line = \(line)")
+            return
+        }
+        
+        masterPlaylist.xKey = parseExtXKey(parametersString)
+    }
+    
+    private func parseMediaPlaylistExtXKey(_ line: String) -> XKey? {
+        // #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://twelve",KEYFORMAT="com.apple.streamingkeydelivery",KEYFORMATVERSIONS="1"
+        // #EXT-X-KEY:METHOD=AES-128,URI="https://my-host/?foo=bar",IV="0x0123456789ABCDEF"
+        
+        guard let parametersString = try? line.replace("#EXT-X-KEY:", replacement: "") else {
+            print("Failed to parse X-KEY on media playlist. Line = \(line)")
+            return nil
+        }
+        
+        return parseExtXKey(parametersString)
+    }
+    
+    private func parseExtXKey(_ parametersString: String) -> XKey? {
+        let parameters = parametersString.m3u8_parseLine()
+        
+        guard let method = parameters["METHOD"],
+              let uriString = parameters["URI"] else {
+            return nil
+        }
+        
+        let iv = parameters["IV"]
+        let keyFormat = parameters["KEYFORMAT"]
+        let keyFormatVersions = parameters["KEYFORMATVERSIONS"]
+    
+        return XKey(method: method, uri: uriString, iv: iv, keyFormat: keyFormat, keyFormatVersions: keyFormatVersions)
+    }
 
     /**
     * Parses Media Playlist manifests
@@ -103,6 +147,7 @@ open class ManifestBuilder {
     fileprivate func parseMediaPlaylist(_ reader: BufferedReader,
                                         mediaPlaylist: MediaPlaylist,
                                         onMediaSegment: ((_ segment: MediaSegment) -> Void)?) -> MediaPlaylist {
+        var xKey: XKey?
         var currentSegment: MediaSegment?
         var currentURI: String?
         var currentSequence = 0
@@ -112,81 +157,66 @@ open class ManifestBuilder {
         }
 
         while let line = reader.readLine() {
-            if line.isEmpty {
+            guard !line.isEmpty else {
                 // Skip empty lines
-
-            } else if line.hasPrefix("#EXT") {
-
+                continue
+            }
+            
+            if line.hasPrefix("#EXT") {
                 // Tags
                 if line.hasPrefix("#EXTM3U") {
 
                     // Ok Do nothing
-                } else if line.hasPrefix("#EXT-X-VERSION") {
-                    do {
-                        let version = try line.replace("(.*):(\\d+)(.*)", replacement: "$2")
-                        mediaPlaylist.version = Int(version)
-                    } catch {
-                        print("Failed to parse the version of media playlist. Line = \(line)")
+                }
+                else if line.hasPrefix("#EXT-X-VERSION") {
+                    if let version = line.m3u8_getIntValue() {
+                        mediaPlaylist.version = version
                     }
-
-                } else if line.hasPrefix("#EXT-X-TARGETDURATION") {
-                    do {
-                        let durationString = try line.replace("(.*):(\\d+)(.*)", replacement: "$2")
-                        mediaPlaylist.targetDuration = Int(durationString)
-                    } catch {
-                        print("Failed to parse the target duration of media playlist. Line = \(line)")
+                }
+                else if line.hasPrefix("#EXT-X-TARGETDURATION") {
+                    if let targetDuration = line.m3u8_getIntValue() {
+                        mediaPlaylist.targetDuration = targetDuration
                     }
-
-                } else if line.hasPrefix("#EXT-X-MEDIA-SEQUENCE") {
-                    do {
-                        let mediaSequence = try line.replace("(.*):(\\d+)(.*)", replacement: "$2")
-                        if let mediaSequenceExtracted = Int(mediaSequence) {
-                            mediaPlaylist.mediaSequence = mediaSequenceExtracted
-                            currentSequence = mediaSequenceExtracted
-                        }
-                    } catch {
-                        print("Failed to parse the media sequence in media playlist. Line = \(line)")
+                }
+                else if line.hasPrefix("#EXT-X-MEDIA-SEQUENCE") {
+                    if let mediaSequence = line.m3u8_getIntValue() {
+                        mediaPlaylist.mediaSequence = mediaSequence
+                        currentSequence = mediaSequence
                     }
-
-                } else if line.hasPrefix("#EXTINF") {
+                }
+                else if line.hasPrefix("#EXTINF") {
                     currentSegment = MediaSegment(mediaPlaylist: mediaPlaylist)
-                    do {
-                        let segmentDurationString = try line.replace("(.*):(\\d.*),(.*)", replacement: "$2")
-                        let segmentTitle = try line.replace("(.*):(\\d.*),(.*)", replacement: "$3")
+                    
+                    if let segmentDurationString = line.m3u8_getValue(0), let segmentTitle = line.m3u8_getValue(1) {
                         currentSegment!.duration = Float(segmentDurationString)
                         currentSegment!.title = segmentTitle
-                    } catch {
-                        print("Failed to parse the segment duration and title. Line = \(line)")
                     }
-                } else if line.hasPrefix("#EXT-X-BYTERANGE") {
+                }
+                else if line.hasPrefix("#EXT-X-BYTERANGE") {
+                    if let subrangeLength = line.m3u8_getIntValue(0) {
+                        currentSegment!.subrangeLength = subrangeLength
+                    }
+                    
                     if line.contains("@") {
-                        do {
-                            let subrangeLength = try line.replace("(.*):(\\d.*)@(.*)", replacement: "$2")
-                            let subrangeStart = try line.replace("(.*):(\\d.*)@(.*)", replacement: "$3")
-                            currentSegment!.subrangeLength = Int(subrangeLength)
-                            currentSegment!.subrangeStart = Int(subrangeStart)
-                        } catch {
-                            print("Failed to parse byte range. Line = \(line)")
-                        }
-                    } else {
-                        do {
-                            let subrangeLength = try line.replace("(.*):(\\d.*)", replacement: "$2")
-                            currentSegment!.subrangeLength = Int(subrangeLength)
-                            currentSegment!.subrangeStart = nil
-                        } catch {
-                            print("Failed to parse the byte range. Line = \(line)")
-                        }
+                        currentSegment!.subrangeStart = line.m3u8_getIntValue(1)
                     }
-                } else if line.hasPrefix("#EXT-X-DISCONTINUITY") {
+                }
+                else if line.hasPrefix("#EXT-X-DISCONTINUITY") {
                     currentSegment!.discontinuity = true
                 }
+                else if line.hasPrefix("#EXT-X-KEY") {
+                    xKey = parseMediaPlaylistExtXKey(line)
+                }
 
-            } else if line.hasPrefix("#") {
+            }
+            else if line.hasPrefix("#") {
                 // Comments are ignored
 
-            } else {
+            }
+            else {
                 // URI - must be
-                if var currentSegmentExists = currentSegment {
+                if let currentSegmentExists = currentSegment {
+                    currentSegmentExists.xKey = xKey
                     currentSegmentExists.path = line
                     currentSegmentExists.sequence = currentSequence
                     currentSequence += 1

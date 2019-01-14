@@ -16,7 +16,7 @@ open class URLBufferedReader: BufferedReader {
     public init(uri: URL) {
         _uri = uri
         _stringReader = StringBufferedReader(string: "")
-        let request1: URLRequest = URLRequest(url: _uri)
+        let request1: URLRequest = URLRequest(url: _uri, cachePolicy: .reloadIgnoringCacheData, timeoutInterval: 10)
         let response: AutoreleasingUnsafeMutablePointer<URLResponse?>? = nil
         do {
             let dataVal = try NSURLConnection.sendSynchronousRequest(request1, returning: response)

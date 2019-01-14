@@ -10,6 +10,7 @@ import Foundation
 
 public class MasterPlaylist {
     internal let path: String?
+    internal(set) public var xKey: XKey?
     internal(set) public var playlists = [MediaPlaylist]()
 
     public init(path: String?) {

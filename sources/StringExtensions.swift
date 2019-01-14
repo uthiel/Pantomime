@@ -5,6 +5,13 @@
 
 import Foundation
 
+extension CharacterSet {
+    static var whitespacesAndQuotes: CharacterSet {
+        let quote = CharacterSet(charactersIn: "\"")
+        return quote.union(.whitespaces)
+    }
+}
+
 // Extend the String object with helpers
 extension String {
 
@@ -21,6 +28,55 @@ extension String {
         )
     }
     
+    // Extracts value string string like #EXT-X-MEDIA-SEQUENCE:{VALUE}
+    func m3u8_getValue(_ index: Int = 0) -> String? {
+        do {
+            return try self.replace("(.*):(\\d+)(.*)", replacement: "$\(index+2)")
+        }
+        catch {
+            print("Failed to parse media playlist. Line = \(self)")
+        }
+        
+        return nil
+    }
+    
+    
+    // Extracts value string string like #EXT-X-MEDIA-SEQUENCE:{VALUE}
+    func m3u8_getIntValue(_ index: Int = 0) -> Int? {
+        guard let stringValue = m3u8_getValue(index) else {
+            return nil
+        }
+        
+        return Int(stringValue)
+    }
+    
+    func m3u8_parseLine() -> [String: String] {
+        let pattern = "([^=\"]+|\"[^\"]+\")"
+        let regex = try! NSRegularExpression(pattern: pattern, options: [])
+        
+        let parameters = self.split(separator: ",")
+        
+        let parametersMap = parameters.reduce([String: String]()) { (parametersMap, parameter) -> [String: String] in
+            let parameterString = String(parameter)
+            
+            let parameterKeyValue = regex.matches(in: parameterString, options: [], range: NSRange(0..<parameterString.utf16.count))
+                .map{(parameterString as NSString).substring(with: $0.range(at: 1))}
+            
+            guard parameterKeyValue.count == 2 else {
+                return parametersMap
+            }
+            
+            let parameterKey = parameterKeyValue[0].unescaped.m3u8_trimmingWhiteSpacesAndQuotes
+            let parameterValue = parameterKeyValue[1].unescaped.m3u8_trimmingWhiteSpacesAndQuotes
+            
+            var parametersMap = parametersMap
+            parametersMap[parameterKey] = parameterValue
+            return parametersMap
+        }
+        
+        return parametersMap
+    }
+    
     var unescaped: String {
         let entities = ["\0", "\t", "\n", "\r", "\"", "\'", "\\"]
         var current = self
@@ -30,5 +86,9 @@ extension String {
             current = current.replacingOccurrences(of: description, with: entity)
         }
         return current
+    }
+    
+    var m3u8_trimmingWhiteSpacesAndQuotes: String {
+        return self.trimmingCharacters(in: CharacterSet.whitespacesAndQuotes)
     }
 }

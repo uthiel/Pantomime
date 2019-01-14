@@ -8,6 +8,7 @@ import Foundation
 public class MediaSegment {
     public unowned let mediaPlaylist: MediaPlaylist
     
+    internal(set) public var xKey: XKey?
     internal(set) public var path: String?
     internal(set) public var duration: Float?
     internal(set) public var sequence: Int = 0
