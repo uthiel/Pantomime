@@ -52,7 +52,9 @@ extension String {
     
     func m3u8_parseLine() -> [String: String] {
         let pattern = "([^=\"]+|\"[^\"]+\")"
-        let regex = try! NSRegularExpression(pattern: pattern, options: [])
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return [:]
+        }
         
         let parameters = self.split(separator: ",")
         
