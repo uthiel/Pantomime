@@ -6,7 +6,7 @@
 import Foundation
 
 open class MediaPlaylist {
-    var masterPlaylist: MasterPlaylist?
+    open weak var masterPlaylist: MasterPlaylist?
 
     open var programId: Int = 0
     open var bandwidth: Int = 0

@@ -6,7 +6,8 @@
 import Foundation
 
 open class MediaSegment {
-    var mediaPlaylist: MediaPlaylist?
+    open weak var mediaPlaylist: MediaPlaylist?
+
     open var duration: Float?
     open var sequence: Int = 0
     open var subrangeLength: Int?
