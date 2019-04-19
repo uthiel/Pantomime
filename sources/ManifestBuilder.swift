@@ -68,12 +68,41 @@ open class ManifestBuilder {
         return masterPlaylist
     }
 
+    private func parseMediaPlaylistExtXKey(_ line: String) -> XKey? {
+        // #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://twelve",KEYFORMAT="com.apple.streamingkeydelivery",
+        //   KEYFORMATVERSIONS="1"
+        // #EXT-X-KEY:METHOD=AES-128,URI="https://my-host/?foo=bar",IV="0x0123456789ABCDEF"
+
+        guard let parametersString = try? line.replace("#EXT-X-KEY:", replacement: "") else {
+            print("Failed to parse X-KEY on media playlist. Line = \(line)")
+            return nil
+        }
+
+        return parseExtXKey(parametersString)
+    }
+
+    private func parseExtXKey(_ parametersString: String) -> XKey? {
+        let parameters = parametersString.m3u8_parseLine()
+
+        guard let method = parameters["METHOD"],
+            let uriString = parameters["URI"] else {
+                return nil
+        }
+
+        let iv = parameters["IV"]
+        let keyFormat = parameters["KEYFORMAT"]
+        let keyFormatVersions = parameters["KEYFORMATVERSIONS"]
+
+        return XKey(method: method, uri: uriString, iv: iv, keyFormat: keyFormat, keyFormatVersions: keyFormatVersions)
+    }
+
     /**
     * Parses Media Playlist manifests
     */
     fileprivate func parseMediaPlaylist(_ reader: BufferedReader,
                                         mediaPlaylist: MediaPlaylist = MediaPlaylist(),
                                         onMediaSegment: ((_ segment: MediaSegment) -> Void)?) -> MediaPlaylist {
+        var xKey: XKey?
         var currentSegment: MediaSegment?
         var currentURI: String?
         var currentSequence = 0
@@ -150,6 +179,8 @@ open class ManifestBuilder {
                     }
                 } else if line.hasPrefix("#EXT-X-DISCONTINUITY") {
                     currentSegment!.discontinuity = true
+                } else if line.hasPrefix("#EXT-X-KEY") {
+                    xKey = parseMediaPlaylistExtXKey(line)
                 }
 
             } else if line.hasPrefix("#") {
@@ -161,6 +192,7 @@ open class ManifestBuilder {
                     currentSegmentExists.mediaPlaylist = mediaPlaylist
                     currentSegmentExists.path = line
                     currentSegmentExists.sequence = currentSequence
+                    currentSegmentExists.xKey = xKey
                     currentSequence += 1
                     mediaPlaylist.addSegment(currentSegmentExists)
                     if let callableOnMediaSegment = onMediaSegment {

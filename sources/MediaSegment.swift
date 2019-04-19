@@ -15,6 +15,7 @@ open class MediaSegment {
     open var title: String?
     open var discontinuity: Bool = false
     open var path: String?
+    open var xKey: XKey?
 
     public init() {
 
