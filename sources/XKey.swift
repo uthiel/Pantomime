@@ -27,7 +27,7 @@ public class XKey {
             return nil
         }
 
-        return Data(bytes: byteArray)
+        return Data(byteArray)
     }
 
     private static func byteArrayFromHexString(_ hexString: String?) -> [UInt8]? {
