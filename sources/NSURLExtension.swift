@@ -15,7 +15,6 @@ public extension URL {
 
         - Returns: A new URL object or nil
      */
-    @available(iOS 4.0, *)
     func URLByReplacingLastPathComponent(_ pathComponent: String) -> URL? {
          let tmpurl = self.deletingLastPathComponent()
 				 return tmpurl.appendingPathComponent(pathComponent)
