@@ -177,7 +177,7 @@ open class ManifestBuilder {
                             print("Failed to parse the byte range. Line = \(line)")
                         }
                     }
-                } else if line.hasPrefix("#EXT-X-DISCONTINUITY") {
+                } else if line.hasPrefix("#EXT-X-DISCONTINUITY" && currentSegment != nil) {
                     currentSegment!.discontinuity = true
                 } else if line.hasPrefix("#EXT-X-KEY") {
                     xKey = parseMediaPlaylistExtXKey(line)
